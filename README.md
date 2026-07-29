@@ -33,6 +33,22 @@ For the full picture see **[docs/architecture.md](docs/architecture.md)**.
 
 ---
 
+## First prototype (early concept)
+
+![First prototype of the agent workspace — Amazon Connect CCP in a companion window alongside the D365 Contact Center case, with live transcript in the Communication Panel](docs/assets/prototype-agent-workspace.png)
+
+> **This is the very first working prototype — the concept, not the finished
+> experience.** It shows the Connect CCP running in a companion window next to a
+> D365 case, with the call transcript flowing into the Communication Panel.
+>
+> **The agent-facing UI still needs real design work.** For example, the free-text
+> message box at the bottom of the panel doesn't make sense for a *voice* call —
+> the agent isn't typing to the caller — and several other panel affordances are
+> placeholders carried over from the messaging channel. Treat this screenshot as a
+> proof of concept that the plumbing works end-to-end, **not** as a UX spec.
+
+---
+
 ## Why this design
 
 The obvious approach — embed the Connect CCP directly and stream Contact Lens
@@ -111,6 +127,25 @@ A per-file component inventory is in **[docs/components.md](docs/components.md)*
 | **[docs/deployed-resources.md](docs/deployed-resources.md)** | The live resource inventory (AWS + Azure + D365 IDs) as currently deployed. |
 | **[docs/troubleshooting.md](docs/troubleshooting.md)** | Symptoms → causes → fixes, including the `frame-ancestors` and real-time Contact Lens 404 issues. |
 | **[docs/original-design-notes.md](docs/original-design-notes.md)** | The earlier (poller-based) design, kept for history. |
+
+---
+
+## Pricing / cost model
+
+A first-pass cost model for the live-transcription path is attached:
+**[docs/pricing/LiveTranscription-CostModel.xlsx](docs/pricing/LiveTranscription-CostModel.xlsx)**.
+Use it to reason about the order-of-magnitude cost of running the integration
+(Azure Speech, Container Apps, Direct Line/Omnichannel, AWS Connect + Contact Lens
++ KVS, etc.).
+
+> **⚠️ Disclaimer — this is a horizon estimate, not a quote.** The costs and the
+> specific SKUs / pricing tiers in the spreadsheet are **illustrative** and must be
+> **properly validated** against current Azure and AWS pricing, your committed
+> discounts, region, and expected call volume before anyone relies on them. Rates
+> change, SKUs get renamed or deprecated, and the assumptions baked into the model
+> may not match your workload. Treat the numbers as a directional horizon to guide
+> planning — **validate every SKU and unit price with the official pricing sources
+> (and your account team) before making budget or architecture decisions.**
 
 ---
 
