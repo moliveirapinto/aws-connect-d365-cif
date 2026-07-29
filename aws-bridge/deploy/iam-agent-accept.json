@@ -1,0 +1,26 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ConnectionsRead",
+      "Effect": "Allow",
+      "Action": ["dynamodb:GetItem", "dynamodb:Query"],
+      "Resource": [
+        "arn:aws:dynamodb:us-east-1:139035987927:table/aws-connect-d365-bridge-ConnectionsTable-47CAEN83OVDT",
+        "arn:aws:dynamodb:us-east-1:139035987927:table/aws-connect-d365-bridge-ConnectionsTable-47CAEN83OVDT/index/*"
+      ]
+    },
+    {
+      "Sid": "WsManageConnections",
+      "Effect": "Allow",
+      "Action": ["execute-api:ManageConnections"],
+      "Resource": "arn:aws:execute-api:us-east-1:139035987927:bz8qrnj6ce/*"
+    },
+    {
+      "Sid": "ResolveAgentEmail",
+      "Effect": "Allow",
+      "Action": ["connect:SearchUsers", "connect:DescribeUser"],
+      "Resource": "*"
+    }
+  ]
+}

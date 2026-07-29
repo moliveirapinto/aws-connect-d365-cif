@@ -1,0 +1,27 @@
+{
+  "Version": "2019-10-30",
+  "StartAction": "start-media",
+  "Actions": [
+    {
+      "Identifier": "start-media",
+      "Type": "StartMediaStreaming",
+      "Parameters": {
+        "MediaStreamType": "Audio",
+        "Track": "FromCustomer, ToCustomer"
+      },
+      "Transitions": {
+        "NextAction": "end",
+        "Errors": [
+          { "NextAction": "end", "ErrorType": "NoMatchingError" }
+        ],
+        "Conditions": []
+      }
+    },
+    {
+      "Identifier": "end",
+      "Type": "DisconnectParticipant",
+      "Parameters": {},
+      "Transitions": {}
+    }
+  ]
+}

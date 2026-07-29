@@ -1,0 +1,19 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AmazonConnectRecordingsObjects",
+      "Effect": "Allow",
+      "Principal": { "AWS": "arn:aws:iam::139035987927:role/aws-service-role/connect.amazonaws.com/AWSServiceRoleForAmazonConnect_WJjOhPrnTmVxFa8PH4ph" },
+      "Action": ["s3:PutObject", "s3:PutObjectAcl", "s3:GetObject", "s3:GetObjectAcl"],
+      "Resource": "arn:aws:s3:::amazon-connect-d365-139035987927-rec/*"
+    },
+    {
+      "Sid": "AmazonConnectRecordingsBucket",
+      "Effect": "Allow",
+      "Principal": { "AWS": "arn:aws:iam::139035987927:role/aws-service-role/connect.amazonaws.com/AWSServiceRoleForAmazonConnect_WJjOhPrnTmVxFa8PH4ph" },
+      "Action": ["s3:GetBucketAcl", "s3:GetBucketLocation", "s3:ListBucket"],
+      "Resource": "arn:aws:s3:::amazon-connect-d365-139035987927-rec"
+    }
+  ]
+}

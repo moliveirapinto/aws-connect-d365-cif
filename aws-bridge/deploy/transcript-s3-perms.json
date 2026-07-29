@@ -1,0 +1,23 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "Logs",
+      "Effect": "Allow",
+      "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
+      "Resource": "arn:aws:logs:us-east-1:139035987927:*"
+    },
+    {
+      "Sid": "ReadAnalysisFromRecordingsBucket",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject"],
+      "Resource": "arn:aws:s3:::amazon-connect-d365-139035987927-rec/*"
+    },
+    {
+      "Sid": "DescribeContactForAniAndAgent",
+      "Effect": "Allow",
+      "Action": ["connect:DescribeContact"],
+      "Resource": "*"
+    }
+  ]
+}

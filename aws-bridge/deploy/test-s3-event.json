@@ -1,0 +1,10 @@
+{
+  "Records": [
+    {
+      "s3": {
+        "bucket": { "name": "amazon-connect-d365-139035987927-rec" },
+        "object": { "key": "Analysis/Voice/2026/07/23/9aa7d3e0-c2e3-49bf-b5b1-b8ac4eb05bc8_analysis_2026-07-23T15:42:43Z.json" }
+      }
+    }
+  ]
+}

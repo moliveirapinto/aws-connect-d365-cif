@@ -1,0 +1,424 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-09
+Description: >
+  AWS bridge for streaming Amazon Connect Contact Lens real-time transcript into
+  a D365 Omnichannel conversation (via the ingestor) and to the CIF agent widget.
+
+Parameters:
+  IngestorUrl:
+    Type: String
+    Description: HTTPS URL of the D365 ingestor Function `transcript` endpoint.
+  IngestorKey:
+    Type: String
+    NoEcho: true
+    Description: Function-level key (x-functions-key) for the ingestor.
+  PollIntervalMs:
+    Type: Number
+    Default: 1500
+    Description: Contact Lens poll cadence in milliseconds.
+  RecordingsBucket:
+    Type: String
+    Description: >
+      Name of the S3 bucket where Amazon Connect writes call recordings and
+      Contact Lens post-call analysis (the transcript source). The S3
+      ObjectCreated notification on the `Analysis/Voice/` prefix must point at
+      TranscriptFromS3Fn (wired out-of-band since the bucket is pre-existing).
+  ConsumerUrl:
+    Type: String
+    Description: >
+      HTTPS base URL of the Azure KVS consumer Container App (no trailing
+      slash). kvsNotify POSTs `${ConsumerUrl}/session/start` at call start so
+      the consumer begins reading live audio from Kinesis Video Streams.
+  SessionKey:
+    Type: String
+    NoEcho: true
+    Description: Shared secret (x-session-key) required by the KVS consumer.
+  ConnectInstanceId:
+    Type: String
+    Description: >
+      Amazon Connect instance id. Used at agent-accept time to resolve the
+      accepting agent's SSO email (SearchUsers -> DescribeUser) so the `assigned`
+      signal can be pushed to that agent's own D365 CIF widget.
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Timeout: 900
+    MemorySize: 256
+    Architectures: [arm64]
+
+Resources:
+  ConnectionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: connectionId
+          AttributeType: S
+        - AttributeName: contactId
+          AttributeType: S
+        - AttributeName: agentEmail
+          AttributeType: S
+      KeySchema:
+        - AttributeName: connectionId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: byContact
+          KeySchema:
+            - AttributeName: contactId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: byAgent
+          KeySchema:
+            - AttributeName: agentEmail
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  ActiveTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: contactId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: contactId
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  # ---- WebSocket API for the CIF agent widget ----
+  WebSocketApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: aws-connect-d365-transcript-ws
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: "$request.body.action"
+
+  WebSocketFn:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints: [websocket.ts]
+        Target: es2022
+        Format: esm
+        OutExtension: [".js=.mjs"]
+        External: ["@aws-sdk/*"]
+        Sourcemap: true
+    Properties:
+      Handler: websocket.handler
+      CodeUri: src/
+      Environment:
+        Variables:
+          CONNECTIONS_TABLE: !Ref ConnectionsTable
+          WS_API_ENDPOINT: !Sub "https://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ConnectionsTable
+
+  WebSocketIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketFn.Arn}/invocations"
+
+  ConnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: "$connect"
+      Target: !Sub "integrations/${WebSocketIntegration}"
+  DisconnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: "$disconnect"
+      Target: !Sub "integrations/${WebSocketIntegration}"
+  SubscribeRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: "subscribe"
+      Target: !Sub "integrations/${WebSocketIntegration}"
+  IdentifyRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: "identify"
+      Target: !Sub "integrations/${WebSocketIntegration}"
+  UnsubscribeRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: "unsubscribe"
+      Target: !Sub "integrations/${WebSocketIntegration}"
+  DefaultRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: "$default"
+      Target: !Sub "integrations/${WebSocketIntegration}"
+
+  WebSocketDeployment:
+    Type: AWS::ApiGatewayV2::Deployment
+    DependsOn:
+      - ConnectRoute
+      - DisconnectRoute
+      - SubscribeRoute
+      - IdentifyRoute
+      - UnsubscribeRoute
+      - DefaultRoute
+    Properties:
+      ApiId: !Ref WebSocketApi
+  WebSocketStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref WebSocketApi
+      DeploymentId: !Ref WebSocketDeployment
+      StageName: prod
+      AutoDeploy: true
+
+  WebSocketInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref WebSocketFn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*"
+
+  # ---- Poller: reads Contact Lens real-time segments and fans them out ----
+  PollerFn:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints: [poller.ts]
+        Target: es2022
+        Format: esm
+        OutExtension: [".js=.mjs"]
+        External: ["@aws-sdk/*"]
+        Sourcemap: true
+    Properties:
+      Handler: poller.handler
+      CodeUri: src/
+      Environment:
+        Variables:
+          INGESTOR_URL: !Ref IngestorUrl
+          INGESTOR_KEY: !Ref IngestorKey
+          CONNECTIONS_TABLE: !Ref ConnectionsTable
+          ACTIVE_TABLE: !Ref ActiveTable
+          WS_API_ENDPOINT: !Sub "https://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+          POLL_INTERVAL_MS: !Ref PollIntervalMs
+          POLLER_FUNCTION_NAME: !Sub "${AWS::StackName}-poller"
+      FunctionName: !Sub "${AWS::StackName}-poller"
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ActiveTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref ConnectionsTable
+        - Statement:
+            - Effect: Allow
+              Action: ["connect:ListRealtimeContactAnalysisSegments"]
+              Resource: "*"
+            - Effect: Allow
+              Action: ["execute-api:ManageConnections"]
+              Resource: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*"
+            - Effect: Allow
+              Action: ["lambda:InvokeFunction"]
+              Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-poller"
+
+  # ---- Lifecycle: called by the Connect contact flow at call start/end ----
+  LifecycleFn:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints: [lifecycle.ts]
+        Target: es2022
+        Format: esm
+        OutExtension: [".js=.mjs"]
+        External: ["@aws-sdk/*"]
+        Sourcemap: true
+    Properties:
+      Handler: lifecycle.handler
+      CodeUri: src/
+      Timeout: 30
+      Environment:
+        Variables:
+          INGESTOR_URL: !Ref IngestorUrl
+          INGESTOR_KEY: !Ref IngestorKey
+          ACTIVE_TABLE: !Ref ActiveTable
+          CONNECTIONS_TABLE: !Ref ConnectionsTable
+          WS_API_ENDPOINT: !Sub "https://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+          POLLER_FUNCTION_NAME: !Sub "${AWS::StackName}-poller"
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ActiveTable
+        - Statement:
+            - Effect: Allow
+              Action: ["lambda:InvokeFunction"]
+              Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-poller"
+
+  LifecycleConnectPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LifecycleFn
+      Principal: connect.amazonaws.com
+
+  # ---- KVS notify: called by the Connect contact flow right after the
+  # "Start media streaming" block. Hands the Kinesis Video Streams details to
+  # the Azure consumer so it starts transcribing the LIVE call audio. ----
+  KvsNotifyFn:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints: [kvsNotify.ts]
+        Target: es2022
+        Format: esm
+        OutExtension: [".js=.mjs"]
+        External: ["@aws-sdk/*"]
+        Sourcemap: true
+    Properties:
+      Handler: kvsNotify.handler
+      CodeUri: src/
+      Timeout: 30
+      FunctionName: !Sub "${AWS::StackName}-kvs-notify"
+      Environment:
+        Variables:
+          CONSUMER_URL: !Ref ConsumerUrl
+          SESSION_KEY: !Ref SessionKey
+
+  KvsNotifyConnectPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref KvsNotifyFn
+      Principal: connect.amazonaws.com
+
+  # ---- Agent-accept notify: called by the Connect AGENT WHISPER flow the instant
+  # an agent accepts the contact. Resolves the accepting agent's SSO email and
+  # pushes an `assigned` frame to THAT agent's own D365 CIF widget over the
+  # WebSocket, so the widget opens the conversation on itself (no server-side
+  # routing, no Connect->D365 mapping table). ----
+  AgentAcceptNotifyFn:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints: [agentAcceptNotify.ts]
+        Target: es2022
+        Format: esm
+        OutExtension: [".js=.mjs"]
+        External: ["@aws-sdk/*"]
+        Sourcemap: true
+    Properties:
+      Handler: agentAcceptNotify.handler
+      CodeUri: src/
+      Timeout: 30
+      FunctionName: !Sub "${AWS::StackName}-agent-accept-notify"
+      Environment:
+        Variables:
+          CONSUMER_URL: !Ref ConsumerUrl
+          SESSION_KEY: !Ref SessionKey
+          CONNECTIONS_TABLE: !Ref ConnectionsTable
+          WS_API_ENDPOINT: !Sub "https://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+          CONNECT_INSTANCE_ID: !Ref ConnectInstanceId
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref ConnectionsTable
+        - Statement:
+            - Effect: Allow
+              Action: ["execute-api:ManageConnections"]
+              Resource: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*"
+            - Effect: Allow
+              Action: ["connect:SearchUsers", "connect:DescribeUser"]
+              Resource: "*"
+
+  AgentAcceptNotifyConnectPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AgentAcceptNotifyFn
+      Principal: connect.amazonaws.com
+
+  # ---- Transcript from S3: the reliable post-call transcript path ----
+  # Triggered by an S3 ObjectCreated notification on the recordings bucket's
+  # `Analysis/Voice/` prefix (Contact Lens post-call analysis). Reads the
+  # completed transcript and posts it to the ingestor in one atomic request.
+  TranscriptFromS3Fn:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints: [transcriptFromS3.ts]
+        Target: es2022
+        Format: esm
+        OutExtension: [".js=.mjs"]
+        External: ["@aws-sdk/*"]
+        Sourcemap: true
+    Properties:
+      Handler: transcriptFromS3.handler
+      CodeUri: src/
+      Timeout: 60
+      FunctionName: !Sub "${AWS::StackName}-transcript-s3"
+      Environment:
+        Variables:
+          INGESTOR_URL: !Ref IngestorUrl
+          INGESTOR_KEY: !Ref IngestorKey
+          CONNECTIONS_TABLE: !Ref ConnectionsTable
+          WS_API_ENDPOINT: !Sub "https://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref ConnectionsTable
+        - Statement:
+            - Effect: Allow
+              Action: ["s3:GetObject"]
+              Resource: !Sub "arn:aws:s3:::${RecordingsBucket}/*"
+            - Effect: Allow
+              Action: ["connect:DescribeContact"]
+              Resource: "*"
+            - Effect: Allow
+              Action: ["execute-api:ManageConnections"]
+              Resource: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*"
+
+  # Allow the recordings S3 bucket to invoke the transcript function. The bucket
+  # notification itself is configured out-of-band (pre-existing bucket).
+  TranscriptFromS3InvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TranscriptFromS3Fn
+      Principal: s3.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub "arn:aws:s3:::${RecordingsBucket}"
+
+Outputs:
+  WebSocketUrl:
+    Description: WebSocket URL for the CIF widget (VITE_TRANSCRIPT_WS_URL).
+    Value: !Sub "wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+  LifecycleFunctionArn:
+    Description: Add this ARN to the Connect contact flow "Invoke AWS Lambda function" block.
+    Value: !GetAtt LifecycleFn.Arn
+  KvsNotifyFunctionArn:
+    Description: >
+      Add this ARN to an "Invoke AWS Lambda function" block placed right after
+      the "Start media streaming" block in the Connect contact flow.
+    Value: !GetAtt KvsNotifyFn.Arn
+  AgentAcceptNotifyFunctionArn:
+    Description: >
+      Add this ARN to an "Invoke AWS Lambda function" block in the Connect AGENT
+      WHISPER flow, mapping $.Agent.Username to the "connectAgent" parameter.
+    Value: !GetAtt AgentAcceptNotifyFn.Arn
+  TranscriptFromS3FunctionArn:
+    Description: S3 ObjectCreated notification target for the recordings bucket `Analysis/Voice/` prefix.
+    Value: !GetAtt TranscriptFromS3Fn.Arn

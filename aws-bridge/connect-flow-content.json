@@ -1,0 +1,112 @@
+{
+  "Version": "2019-10-30",
+  "StartAction": "set-event-attr",
+  "Metadata": {
+    "entryPointPosition": {"x": 20, "y": 20},
+    "snapToGrid": false,
+    "name": "D365 Bridge Inbound Flow",
+    "description": "Invokes LifecycleFn on call start, then transfers to BasicQueue for the D365/AWS Connect bridge.",
+    "type": "contactFlow",
+    "status": "published",
+    "ActionMetadata": {}
+  },
+  "Actions": [
+    {
+      "Identifier": "set-event-attr",
+      "Parameters": {
+        "Attributes": {
+          "event": "started"
+        }
+      },
+      "Transitions": {
+        "NextAction": "invoke-lifecycle-start",
+        "Errors": [
+          {"NextAction": "invoke-lifecycle-start", "ErrorType": "NoMatchingError"}
+        ],
+        "Conditions": []
+      },
+      "Type": "UpdateContactAttributes"
+    },
+    {
+      "Identifier": "invoke-lifecycle-start",
+      "Parameters": {
+        "LambdaFunctionARN": "arn:aws:lambda:us-east-1:139035987927:function:aws-connect-d365-bridge-LifecycleFn-oXY04s8LmiX9",
+        "InvocationTimeLimitSeconds": "8"
+      },
+      "Transitions": {
+        "NextAction": "set-recording-analytics",
+        "Errors": [
+          {"NextAction": "set-recording-analytics", "ErrorType": "NoMatchingError"}
+        ],
+        "Conditions": []
+      },
+      "Type": "InvokeLambdaFunction"
+    },
+    {
+      "Identifier": "set-recording-analytics",
+      "Parameters": {
+        "RecordingBehavior": {
+          "RecordedParticipants": ["Agent", "Customer"]
+        },
+        "AnalyticsBehavior": {
+          "Enabled": "True",
+          "AnalyticsLanguage": "en-US",
+          "ChannelConfiguration": {
+            "Chat": {"AnalyticsModes": []},
+            "Voice": {"AnalyticsModes": ["RealTime"]}
+          }
+        }
+      },
+      "Transitions": {
+        "NextAction": "set-queue",
+        "Errors": [],
+        "Conditions": []
+      },
+      "Type": "UpdateContactRecordingBehavior"
+    },
+    {
+      "Identifier": "set-queue",
+      "Parameters": {
+        "QueueId": "arn:aws:connect:us-east-1:139035987927:instance/1fc5d6d3-95c9-421a-b33e-ff1d47db4c49/queue/87b9ba9a-b575-484f-b0b4-d16fea239f8a"
+      },
+      "Transitions": {
+        "NextAction": "transfer-queue",
+        "Errors": [
+          {"NextAction": "error-message", "ErrorType": "NoMatchingError"}
+        ],
+        "Conditions": []
+      },
+      "Type": "UpdateContactTargetQueue"
+    },
+    {
+      "Identifier": "transfer-queue",
+      "Transitions": {
+        "NextAction": "disconnect",
+        "Errors": [
+          {"NextAction": "error-message", "ErrorType": "NoMatchingError"},
+          {"NextAction": "error-message", "ErrorType": "QueueAtCapacity"}
+        ],
+        "Conditions": []
+      },
+      "Type": "TransferContactToQueue"
+    },
+    {
+      "Identifier": "error-message",
+      "Parameters": {
+        "Text": "We're sorry, all agents are busy. Please try again later. Goodbye."
+      },
+      "Transitions": {
+        "NextAction": "disconnect",
+        "Errors": [],
+        "Conditions": []
+      },
+      "Type": "MessageParticipant"
+    },
+    {
+      "Identifier": "disconnect",
+      "Type": "DisconnectParticipant",
+      "Parameters": {},
+      "Transitions": {}
+    }
+  ]
+}

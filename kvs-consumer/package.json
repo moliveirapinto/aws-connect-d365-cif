@@ -1,0 +1,25 @@
+{
+  "name": "aws-connect-d365-kvs-consumer",
+  "version": "0.1.0",
+  "description": "Reads live Amazon Connect call audio from Kinesis Video Streams, transcribes it in real time with Azure AI Speech, and posts each finalised utterance to the D365 ingestor so the transcript lands LIVE in the Omnichannel conversation during the call.",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aws-sdk/client-kinesis-video": "^3.632.0",
+    "@aws-sdk/client-kinesis-video-media": "^3.632.0",
+    "@azure/identity": "^4.13.1",
+    "ebml-stream": "^1.0.1",
+    "express": "^4.21.0",
+    "microsoft-cognitiveservices-speech-sdk": "^1.40.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.4"
+  }
+}

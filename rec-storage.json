@@ -1,0 +1,7 @@
+{
+  "StorageType": "S3",
+  "S3Config": {
+    "BucketName": "amazon-connect-d365-139035987927-rec",
+    "BucketPrefix": "connect/recordings"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "aws-connect-d365-ingestor",
+  "version": "0.1.0",
+  "description": "Streams Amazon Connect Contact Lens transcript segments into a D365 Omnichannel conversation so native Copilot agents (Conversation Summary, Intent, Case Management Agent) fire.",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.5.0",
+    "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.4"
+  }
+}

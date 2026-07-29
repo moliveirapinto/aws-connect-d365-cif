@@ -1,0 +1,8 @@
+{
+  "globalHeaders": {
+    "Content-Security-Policy": "frame-ancestors 'self' https://*.dynamics.com https://*.microsoftcrmportals.com; frame-src https://*.my.connect.aws https://*.awsapps.com;"
+  },
+  "responseOverrides": {
+    "404": { "rewrite": "/index.html" }
+  }
+}

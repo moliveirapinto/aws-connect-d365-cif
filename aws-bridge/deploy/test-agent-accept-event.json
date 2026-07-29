@@ -1,0 +1,11 @@
+{
+  "Details": {
+    "ContactData": {
+      "ContactId": "synthetic-accept-test-0001",
+      "Attributes": {}
+    },
+    "Parameters": {
+      "connectAgent": "mauricio.agent"
+    }
+  }
+}

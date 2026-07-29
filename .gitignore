@@ -1,0 +1,18 @@
+node_modules
+dist
+.env
+.env.local
+*.log
+.DS_Store
+
+.secrets.botapp
+.secrets.directline
+.secrets.*
+**/.env.local
+
+# Build outputs / local deploy staging (packaged into GitHub Releases, not source)
+.aws-sam/
+**/.deploy/
+dist-lambda/
+packaged.yaml
+tsconfig.tsbuildinfo

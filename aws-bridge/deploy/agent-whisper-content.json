@@ -1,0 +1,48 @@
+{
+  "Version": "2019-10-30",
+  "StartAction": "invoke-agent-accept",
+  "Metadata": {
+    "entryPointPosition": { "x": 20, "y": 20 },
+    "snapToGrid": false,
+    "ActionMetadata": {
+      "invoke-agent-accept": { "position": { "x": 240, "y": 20 } },
+      "222caecc-c107-4553-87fc-85a74c34bb06": { "position": { "x": 500, "y": 20 } },
+      "95dc2179-0f18-4646-8e15-15377c9cbb29": { "position": { "x": 760, "y": 20 } }
+    }
+  },
+  "Actions": [
+    {
+      "Identifier": "invoke-agent-accept",
+      "Parameters": {
+        "LambdaFunctionARN": "arn:aws:lambda:us-east-1:139035987927:function:aws-connect-d365-bridge-agent-accept-notify",
+        "InvocationTimeLimitSeconds": "8",
+        "LambdaInvocationAttributes": { "connectAgent": "$.Agent.UserName" },
+        "ResponseValidation": { "ResponseType": "STRING_MAP" }
+      },
+      "Transitions": {
+        "NextAction": "222caecc-c107-4553-87fc-85a74c34bb06",
+        "Errors": [
+          { "NextAction": "222caecc-c107-4553-87fc-85a74c34bb06", "ErrorType": "NoMatchingError" }
+        ],
+        "Conditions": []
+      },
+      "Type": "InvokeLambdaFunction"
+    },
+    {
+      "Identifier": "222caecc-c107-4553-87fc-85a74c34bb06",
+      "Parameters": { "Text": "$.Queue.Name" },
+      "Transitions": {
+        "NextAction": "95dc2179-0f18-4646-8e15-15377c9cbb29",
+        "Errors": [],
+        "Conditions": []
+      },
+      "Type": "MessageParticipant"
+    },
+    {
+      "Identifier": "95dc2179-0f18-4646-8e15-15377c9cbb29",
+      "Parameters": {},
+      "Transitions": {},
+      "Type": "EndFlowExecution"
+    }
+  ]
+}

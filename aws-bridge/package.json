@@ -1,0 +1,24 @@
+{
+  "name": "aws-connect-d365-bridge",
+  "version": "0.1.0",
+  "description": "AWS side: pulls Amazon Connect Contact Lens real-time transcript segments and fans them to the D365 ingestor (Direct Line) and the CIF agent widget WebSocket.",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aws-sdk/client-connect": "^3.637.0",
+    "@aws-sdk/client-connect-contact-lens": "^3.637.0",
+    "@aws-sdk/client-dynamodb": "^3.637.0",
+    "@aws-sdk/client-lambda": "^3.637.0",
+    "@aws-sdk/client-apigatewaymanagementapi": "^3.637.0",
+    "@aws-sdk/client-s3": "^3.637.0",
+    "@aws-sdk/lib-dynamodb": "^3.637.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.4"
+  }
+}

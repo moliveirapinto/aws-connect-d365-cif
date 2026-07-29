@@ -1,0 +1,11 @@
+[
+  {
+    "Create": {
+      "IndexName": "byAgent",
+      "KeySchema": [
+        { "AttributeName": "agentEmail", "KeyType": "HASH" }
+      ],
+      "Projection": { "ProjectionType": "ALL" }
+    }
+  }
+]

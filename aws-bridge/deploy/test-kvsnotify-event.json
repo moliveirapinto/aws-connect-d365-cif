@@ -1,0 +1,21 @@
+{
+  "Details": {
+    "ContactData": {
+      "ContactId": "synthetic-test-0001",
+      "CustomerEndpoint": { "Address": "+14167792856" },
+      "Attributes": {},
+      "MediaStreams": {
+        "Customer": {
+          "Audio": {
+            "StreamARN": "arn:aws:kinesisvideo:us-east-1:139035987927:stream/d365-bridge-nonexistent/0000000000000",
+            "StartFragmentNumber": "0"
+          }
+        }
+      }
+    },
+    "Parameters": {
+      "streamArn": "arn:aws:kinesisvideo:us-east-1:139035987927:stream/d365-bridge-nonexistent/0000000000000",
+      "startFragmentNumber": "0"
+    }
+  }
+}
