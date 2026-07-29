@@ -105,4 +105,4 @@ Node/Express service deployed as an Azure Container App.
 | `staticwebapp.config.json` | SWA CSP: `frame-ancestors *.dynamics.com`; `frame-src *.my.connect.aws`. |
 | `vite.config.ts`, `tsconfig.json`, `index.html` | Widget build config. |
 | `rec-storage.json`, `rec-bucket-policy.json` | S3 recording/analysis storage config. |
-| `docs/build_cost_model.py`, `docs/LiveTranscription-CostModel.xlsx` | Cost model. |
+| `docs/pricing/LiveTranscription-CostModel.xlsx` | Cost / pricing model (horizon estimate — validate SKUs & rates). |
